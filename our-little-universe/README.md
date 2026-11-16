@@ -37,7 +37,7 @@ For deployment, enable Cloud Storage for Firebase, add `AVATAR_BUCKET=your-bucke
 ```sh
 npx --yes firebase-tools@15.34.0 functions:secrets:set OPENAI_API_KEY --project YOUR_PROJECT_ID
 npm ci --prefix functions
-npx --yes firebase-tools@15.34.0 deploy --only functions,firestore,storage --project YOUR_PROJECT_ID
+npx --yes firebase-tools@15.34.0 deploy --only auth,functions,firestore,storage --project YOUR_PROJECT_ID
 ```
 
 Use **Set up your avatar** in your room to select, preview, and approve a starter avatar. Starter avatars require no photo, image provider, or API credits. When you want a photo portrait, open **Use a photo later** and generate a new version. Each approved photo version preserves its base portrait. Open **Expressions** on a photo version to generate the seven edits from that exact portrait. A partial pack can be resumed without regenerating completed expressions. Each edit counts as one provider request. Deleting a version removes its portrait and all its expressions. Earlier sample versions can still be deleted.
