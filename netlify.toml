@@ -1,7 +1,7 @@
 [build]
   base = "our-little-universe"
   command = "npm run build:production"
-  publish = "dist"
+  publish = "our-little-universe/dist"
 
 [build.environment]
   NODE_VERSION = "24"
