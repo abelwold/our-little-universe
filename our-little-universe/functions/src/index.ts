@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https';
 import { notifyPlayer } from './notifications';
+import { requireActiveAccount } from './account-state';
 
 initializeApp();
 const db = getFirestore();
@@ -22,6 +23,7 @@ export { generateAvatar, approveAvatar, removeAvatar, generateAvatarExpression, 
 export { startStory, playStoryTurn, reviewStory } from './stories';
 export { generateStoryDraft } from './interpretation';
 export { setSceneConsent, generateScene, getSceneImage, updateStorybookActivity } from './scenes';
+export { deleteMyAccount, deleteSharedStory } from './privacy';
 
 function invitation(code: string) {
   return invitations.doc(createHash('sha256').update(code).digest('hex'));
@@ -39,6 +41,7 @@ export const createRoom = onCall(options, async request => {
   const host = players.doc(uid);
   const invite = newInvite();
   return db.runTransaction(async tx => {
+    await requireActiveAccount(uid, tx);
     const current = (await tx.get(host)).data();
     if (current?.roomId) return { roomId: current.roomId };
     tx.create(room, {
@@ -55,6 +58,7 @@ export const joinRoom = onCall(options, async request => {
   const code = typeof request.data?.code === 'string' ? request.data.code.trim().toLowerCase() : '';
   if (!/^[0-9a-f]{16}$/.test(code)) throw new HttpsError('invalid-argument', 'Enter the 16-character invitation code.');
   return db.runTransaction(async tx => {
+    await requireActiveAccount(uid, tx);
     const member = players.doc(uid);
     const memberData = (await tx.get(member)).data();
     if (memberData?.lastJoinedInvite === invitation(code).id && memberData.roomId) return { roomId: memberData.roomId };
@@ -69,6 +73,7 @@ export const joinRoom = onCall(options, async request => {
     if (!current || current.status !== 'waiting' || current.partnerId || current.ownerId === uid) {
       throw new HttpsError('failed-precondition', 'This room is unavailable.');
     }
+    await requireActiveAccount(current.ownerId, tx);
     tx.update(room, { partnerId: uid, status: 'ready', joinedAt: FieldValue.serverTimestamp() });
     tx.set(member, { roomId: room.id, lastJoinedInvite: invite.id }, { merge: true });
     tx.update(players.doc(current.ownerId), { roomId: room.id, ...clearInvite });
@@ -82,6 +87,7 @@ export const replaceInvite = onCall(options, async request => {
   const uid = player(request);
   const next = newInvite();
   return db.runTransaction(async tx => {
+    await requireActiveAccount(uid, tx);
     const host = players.doc(uid);
     const member = (await tx.get(host)).data();
     if (!member?.roomId) throw new HttpsError('failed-precondition', 'Create a room first.');
@@ -99,6 +105,7 @@ export const replaceInvite = onCall(options, async request => {
 export const leaveRoom = onCall(options, async request => {
   const uid = player(request);
   await db.runTransaction(async tx => {
+    await requireActiveAccount(uid, tx);
     const member = (await tx.get(players.doc(uid))).data();
     if (!member?.roomId) return;
     const room = rooms.doc(member.roomId);

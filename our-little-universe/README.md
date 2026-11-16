@@ -16,7 +16,7 @@ npm run emulators
 
 Open [http://127.0.0.1:5010](http://127.0.0.1:5010). For hot reload, also run `npm run dev` and open [http://127.0.0.1:5181](http://127.0.0.1:5181). Leave the Vite Firebase environment variables unset for emulator use. Create two accounts in separate browser profiles to try the invitation. Accounts and rooms reset when emulators restart.
 
-With the emulators running, execute `node --test tests/rooms.test.mjs` to verify invite replacement, concurrent join handling, membership rules, direct write denial, and room closure.
+With the emulators (including Storage) running, execute `node --test tests/rooms.test.mjs` to verify competitive invite acceptance, membership and write restrictions, turn handling, and story/account deletion. Tests create disposable accounts and private objects in the emulators.
 
 After building Functions, run `node --test tests/avatar-provider.test.mjs` to check that the image adapter sends the reference bytes and handles provider errors. This test does not call OpenAI.
 
@@ -46,7 +46,7 @@ In Netlify, import the intended GitHub repository and choose the release branch.
 
 Review Firebase and OpenAI usage limits and configure billing alerts before inviting users. Production AI requests require a verified email address. The backend keeps daily per-room limits for scenes and drafts. Both partners must opt in before the app sends their timeline for AI interpretation. Photos are sent only after opt-in; downloaded PNG files are outside the app’s deletion controls.
 
-After deploy, test with two separate browser profiles and verify their email addresses. Exercise room creation, invite acceptance, turn synchronization, reload, both review approvals, AI story drafting, real portrait and expressions, postcard and comic generation, storybook reactions and downloads, and room closure. Also check that a third account cannot access the room or generated art. Check a mobile device, a desktop browser and both Firebase and Netlify logs. The emulator is not a substitute for this release check.
+After deploy, test with two separate browser profiles and verify their email addresses. Exercise room creation, invite acceptance, turn synchronization, reload, both review approvals, AI story drafting, real portrait and expressions, postcard and comic generation, storybook reactions and downloads, and room closure. Check that a third account cannot access the room or generated art. Use disposable accounts to verify story deletion, account deletion, and access revocation. Check the Functions runtime has Firebase Authentication Admin permissions and document Cloud Storage soft-delete and backup retention separately from removal in the app. Check a mobile device, a desktop browser and both Firebase and Netlify logs.
 
 ## Features
 
@@ -57,3 +57,4 @@ After deploy, test with two separate browser profiles and verify their email add
 5. **Illustration generation** — after both players approve a story and choose a character, either can generate a single illustration through OpenAI. Both can follow progress and retry a failed request. Each partner can select a saved expression on their approved photo avatar. The selected expression image or the original portrait is used as a private reference. Starter avatars and fictional characters work without photo references. Generation uses the existing OpenAI API credits and Storage configuration.
 6. **Storybook and comics** — illustrated stories appear automatically in the private storybook. After creating a postcard, either partner can generate a three-panel comic using the same approved story and character choices. Both versions can be downloaded as dated, titled PNGs. Partners can react, filter their favorites, and continue or remix an approved story.
 7. **Account and updates** — request password resets and verification emails, manage avatar versions, and see private updates about your room.
+8. **Deletion** — either partner can delete a shared story from its detail page, including by choosing **Manage shared story** from the active game. This removes the story and artwork for both partners and strips copied chapter summaries from continuations. **Account → Delete account** requires the current password and removes sign-in, avatar art, preferences, and all current and former shared rooms with their content. The backend keeps a private account-removal marker to block unexpired sessions. Downloads already saved by either partner and data retained by providers under their retention policies are outside these controls.

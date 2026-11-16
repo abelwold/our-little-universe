@@ -66,6 +66,8 @@ export const reviewStory = httpsCallable<ReviewAction & { roomId: string; storyI
   functions, 'reviewStory',
 );
 type SceneTarget = { roomId: string; storyId: string };
+export const deleteSharedStory = httpsCallable<SceneTarget, { deleted: boolean }>(functions, 'deleteSharedStory', { timeout: 250_000 });
+export const deleteMyAccount = httpsCallable<void, { deleted: boolean }>(functions, 'deleteMyAccount', { timeout: 250_000 });
 export type AiDraftStatus = { status: 'generating' | 'failed'; token?: string; expiresAt?: number; message?: string };
 export const generateStoryDraft = httpsCallable<SceneTarget, { saved: boolean }>(functions, 'generateStoryDraft', { timeout: 110_000 });
 export type StoryReaction = 'love' | 'funny' | 'sweet' | 'flirty';

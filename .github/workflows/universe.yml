@@ -29,4 +29,4 @@ jobs:
       - run: npm ci --prefix functions
       - run: npm run build && npm run build --prefix functions
       - run: printf '%s\n' 'OPENAI_API_KEY=' > functions/.secret.local
-      - run: npx --yes firebase-tools@15.34.0 emulators:exec --project demo-our-little-universe --only auth,firestore,functions "node --test tests/*.test.mjs"
+      - run: npx --yes firebase-tools@15.34.0 emulators:exec --project demo-our-little-universe --only auth,firestore,functions,storage "node --test tests/*.test.mjs"

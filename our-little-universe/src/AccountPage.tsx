@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { sendEmailVerification, sendPasswordResetEmail, type User } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential, sendEmailVerification, sendPasswordResetEmail, signOut, type User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
-import { auth, db } from './firebase';
+import { auth, db, deleteMyAccount } from './firebase';
 
 export function AccountPage({ user }: { user: User }) {
   const [verified, setVerified] = useState(user.emailVerified);
@@ -11,6 +11,7 @@ export function AccountPage({ user }: { user: User }) {
   const [error, setError] = useState('');
   const [badge, setBadge] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [password, setPassword] = useState('');
 
   useEffect(() => onSnapshot(doc(db, 'preferences', user.uid), snapshot => {
     setBadge(snapshot.data()?.notificationBadge !== false);
@@ -24,6 +25,27 @@ export function AccountPage({ user }: { user: User }) {
     try { await action(); }
     catch { setError('Could not update your account. Check your connection and try again.'); }
     finally { setBusy(false); }
+  }
+
+  async function erase() {
+    if (!user.email || !password) return;
+    setBusy(true);
+    setNotice('');
+    setError('');
+    try {
+      try {
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+        await user.getIdToken(true);
+      } catch {
+        setError('Could not confirm your password. Check it or use password reset.');
+        return;
+      }
+      setPassword('');
+      await deleteMyAccount();
+      await signOut(auth);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not complete account deletion. Try again.');
+    } finally { setBusy(false); }
   }
 
   return <section className="panel">
@@ -59,6 +81,17 @@ export function AccountPage({ user }: { user: User }) {
         }} /> Show unread count</label>
     </div>
     <Link className="button secondary" to="/avatar">Manage your avatar</Link>
+    {user.email && <details className="divider">
+      <summary>Delete account</summary>
+      <p>Permanently delete your sign-in, avatars, and all rooms you’ve shared, including their stories and artwork. Your partners will also lose access. This cannot be undone. Any copies already downloaded are unaffected.</p>
+      <form onSubmit={event => { event.preventDefault(); void erase(); }}>
+        <label>Confirm your password<input type="password" autoComplete="current-password" required
+          value={password} onChange={event => setPassword(event.target.value)} disabled={busy} /></label>
+        <button className="button secondary" disabled={busy || !password}>
+          {busy ? 'Please wait…' : 'Permanently delete my account'}
+        </button>
+      </form>
+    </details>}
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert" className="error">{error}</p>}
   </section>;

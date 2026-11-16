@@ -5,6 +5,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions/v2';
 import { type CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https';
 import { avatarModel, avatarStyle, editImage, expressionPrompt, expressions, isJpeg, portraitPrompt, type Expression } from './avatar-provider';
+import { requireActiveAccount } from './account-state';
 
 const apiKey = defineSecret('OPENAI_API_KEY');
 const bucketName = defineString('AVATAR_BUCKET', { default: '' });
@@ -104,6 +105,7 @@ async function withAvatarLock<T>(uid: string, action: (charge: () => Promise<voi
   const ref = db.collection('avatarOperations').doc(uid);
   const token = randomUUID();
   await db.runTransaction(async tx => {
+    await requireActiveAccount(uid, tx);
     const active = (await tx.get(ref)).data();
     if (active?.expiresAt > Date.now()) {
       throw new HttpsError('aborted', 'Another avatar operation is in progress. Try again shortly.');
@@ -242,6 +244,7 @@ export const generateAvatarExpression = onCall(generationOptions, async request 
 
 export const getAvatarImage = onCall(options, async request => {
   const uid = uidFor(request);
+  await requireActiveAccount(uid);
   const id = idFor(request);
   const name = request.data?.image === 'portrait' ? 'portrait' : expressionFor(request.data?.image);
   const profile = profileFor(uid);

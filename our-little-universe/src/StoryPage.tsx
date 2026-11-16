@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { doc, onSnapshot, type Timestamp } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
-import { db, playStoryTurn, startStory, type StoryTile } from './firebase';
+import { db, deleteSharedStory, playStoryTurn, startStory, type StoryTile } from './firebase';
 import { StoryReview, type Review } from './StoryReview';
 import { StoryComic, StoryScene } from './StoryScene';
 import { StorybookActions } from './StorybookActions';
@@ -24,7 +24,7 @@ const starters = { moon: '🌙', sun: '☀️', comet: '☄️', planet: '🪐' 
 
 type Turn = { uid: string; tiles: StoryTile[]; caption: string };
 type Story = StorybookActivity & {
-  theme: string; mood: string; rounds: number; nextPlayer: string | null; status: 'playing' | 'complete';
+  theme: string; mood: string; rounds: number; nextPlayer: string | null; status: 'playing' | 'complete' | 'deleting';
   turns: Turn[]; review?: Review; scene?: Scene; comic?: Scene; sceneConsents?: SceneConsent[];
   completedAt?: Timestamp; createdAt?: Timestamp;
   aiDraft?: AiDraftStatus; aiDraftConsents?: string[];
@@ -34,6 +34,30 @@ type Room = { title: string; status: 'waiting' | 'ready'; activeStoryId?: string
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'Something went wrong. Try again.';
+}
+
+function DeleteStory({ roomId, storyId, pending }: { roomId: string; storyId: string; pending: boolean }) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function erase() {
+    setBusy(true);
+    setError('');
+    try {
+      await deleteSharedStory({ roomId, storyId });
+      navigate('/storybook?room=' + roomId, { replace: true });
+    } catch (error) {
+      setError(errorText(error));
+    } finally { setBusy(false); }
+  }
+  return <details className="divider" open={pending || undefined}>
+    <summary>{pending ? 'Finish deleting shared story' : 'Delete shared story'}</summary>
+    <p>This permanently removes the story and its artwork for both of you. Saved downloads and separately written stories are unaffected.</p>
+    <button className="button secondary" disabled={busy} onClick={() => void erase()}>
+      {busy ? 'Deleting…' : pending ? 'Retry deletion' : 'Permanently delete this story'}
+    </button>
+    {error && <p className="error" role="alert">{error}</p>}
+  </details>;
 }
 
 function Setup({ roomId, previousId, source }: { roomId: string; previousId: string | null;
@@ -145,7 +169,7 @@ export function StoryPage({ uid, roomId, savedStoryId }: { uid: string; roomId: 
     setStoryError('');
     if (activeId) return onSnapshot(doc(db, 'rooms', roomId, 'stories', activeId), snapshot => {
       if (snapshot.exists()) setActive({ id: activeId, story: snapshot.data() as Story });
-      else setStoryError('This story is unavailable.');
+      else { setActive(undefined); setStoryError('This story is unavailable.'); }
     }, () => setStoryError('Could not load the story. Check your connection and refresh.'));
   }, [roomId, activeId]);
 
@@ -170,6 +194,7 @@ export function StoryPage({ uid, roomId, savedStoryId }: { uid: string; roomId: 
       : !activeId ? <Setup roomId={roomId} previousId={null} />
       : storyError ? <p className="error" role="alert">{storyError}</p>
       : !story ? <p role="status">Opening story…</p>
+      : story.status === 'deleting' ? <DeleteStory roomId={roomId} storyId={activeId} pending />
       : <>
         <div className="story-meta">
           <span>{story.mood}</span>
@@ -206,6 +231,8 @@ export function StoryPage({ uid, roomId, savedStoryId }: { uid: string; roomId: 
         </>
           : story.nextPlayer === uid ? <Composer key={activeId + story.turns.length} roomId={roomId} storyId={activeId} turnNumber={story.turns.length} />
           : <p>Check back when your partner has added their turn.</p>}
+        {savedStoryId ? <DeleteStory roomId={roomId} storyId={activeId} pending={false} />
+          : <Link className="quiet divider" to={'/story?room=' + roomId + '&story=' + activeId}>Manage shared story</Link>}
       </>}
   </section>;
 }

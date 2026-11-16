@@ -1,29 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /preferences/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['notificationBadge'])
+    // accountRemovals/{uid} is written only by the Admin SDK. The marker
+    // blocks sessions whose Firebase ID tokens have yet to expire.
+    function activeViewer() {
+      return request.auth != null
+        && !exists(/databases/$(database)/documents/accountRemovals/$(request.auth.uid));
+    }
+    function validPreferences() {
+      return request.resource.data.keys().hasOnly(['notificationBadge'])
         && request.resource.data.notificationBadge is bool;
     }
+    match /preferences/{uid} {
+      allow get: if activeViewer() && request.auth.uid == uid;
+      allow create, update: if activeViewer() && request.auth.uid == uid && validPreferences();
+    }
     match /avatars/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
+      allow get: if activeViewer() && request.auth.uid == uid;
       match /versions/{version} {
-        allow read: if request.auth != null && request.auth.uid == uid;
+        allow read: if activeViewer() && request.auth.uid == uid;
       }
     }
     match /players/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
+      allow get: if activeViewer() && request.auth.uid == uid;
       match /notifications/{entry} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow update: if request.auth != null && request.auth.uid == uid
+        allow read: if activeViewer() && request.auth.uid == uid;
+        allow update: if activeViewer() && request.auth.uid == uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
           && request.resource.data.read == true;
       }
     }
     match /rooms/{roomId} {
-      allow get: if request.auth != null && resource.data.status != 'ended'
+      allow get: if activeViewer() && resource.data.status != 'ended'
         && request.auth.uid in [resource.data.ownerId, resource.data.partnerId];
       match /stories/{storyId} {
         function canReadStory() {
@@ -31,7 +39,7 @@ service cloud.firestore {
           return room.status == 'ready'
             && request.auth.uid in [room.ownerId, room.partnerId];
         }
-        allow read: if request.auth != null && canReadStory();
+        allow read: if activeViewer() && canReadStory();
       }
     }
   }

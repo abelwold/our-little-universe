@@ -1,6 +1,7 @@
 import { FieldValue, getFirestore, type Transaction } from 'firebase-admin/firestore';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { notifyPlayer } from './notifications';
+import { requireActiveAccount } from './account-state';
 
 const options = { region: 'us-central1', maxInstances: 10 };
 const themes = ['First Date', 'Movie Night', 'Surprise Visit', 'Long-Distance Reunion', 'Dream Vacation', 'Cozy Night',
@@ -38,6 +39,7 @@ export async function joinedRoom(tx: Transaction, roomId: unknown, uid: string) 
   if (data?.status !== 'ready' || ![data.ownerId, data.partnerId].includes(uid)) {
     throw new HttpsError('permission-denied', 'Join an active room with your partner to play.');
   }
+  await Promise.all([requireActiveAccount(data.ownerId, tx), requireActiveAccount(data.partnerId, tx)]);
   return { ref, data };
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 
 const project = 'demo-our-little-universe';
@@ -97,4 +97,85 @@ test('a room admits one authenticated partner and protects private membership', 
   assert.equal((await doc(roomPath, host)).status, 403);
   assert.equal((await doc(storyPath, host)).status, 403);
   assert.equal((await doc(playerPath, host)).fields.roomId.nullValue, null);
+});
+
+test('shared-story and account deletion erase private objects and revoke access', async () => {
+  const fnRequire = createRequire(new URL('../functions/package.json', import.meta.url));
+  const { initializeApp, deleteApp } = fnRequire('firebase-admin/app');
+  const { getStorage } = fnRequire('firebase-admin/storage');
+  const { getFirestore } = fnRequire('firebase-admin/firestore');
+  process.env.FIREBASE_STORAGE_EMULATOR_HOST = '127.0.0.1:9198';
+  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8088';
+  const admin = initializeApp({ projectId: project });
+  const db = getFirestore(admin);
+  const bucket = getStorage(admin).bucket(project + '.appspot.com');
+  async function pair(host, partner) {
+    const r = await call('createRoom', { title: 'Private test room' }, host);
+    assert.equal(r.status, 200);
+    const code = (await doc('players/' + host.localId, host)).fields.inviteCode.stringValue;
+    assert.equal((await call('joinRoom', { code }, partner)).status, 200);
+    return r.result.roomId;
+  }
+  async function fixture(path) {
+    const object = bucket.file(path);
+    await object.save(Buffer.from('emulator-only test bytes'), { resumable: false });
+    return object;
+  }
+  try {
+    const [host, partner, outsider] = await Promise.all([account(), account(), account()]);
+    const roomId = await pair(host, partner);
+    const settings = { roomId, theme: 'Cozy Night', mood: 'Cute', rounds: 3, previousId: null };
+    const started = await call('startStory', settings, host);
+    assert.equal(started.status, 200);
+    const storyId = started.result.id;
+    const room = db.doc('rooms/' + roomId);
+    const story = room.collection('stories').doc(storyId);
+    const image = await fixture('rooms/' + roomId + '/scenes/' + storyId + '/postcard.jpg');
+    const descendant = story.parent.doc();
+    await descendant.set({ origin: { storyId, title: 'Copied title', ending: 'Copied ending' }, turns: ['Independent turn'] });
+    assert.equal((await call('deleteSharedStory', { roomId, storyId }, outsider)).status, 403);
+    await story.update({ scene: { status: 'generating', expiresAt: Date.now() + 60000 } });
+    assert.equal((await call('deleteSharedStory', { roomId, storyId }, partner)).error.status, 'FAILED_PRECONDITION');
+    await story.update({ scene: { status: 'ready', attempt: 'postcard' } });
+    assert.equal((await call('deleteSharedStory', { roomId, storyId }, partner)).status, 200);
+    assert.equal((await call('deleteSharedStory', { roomId, storyId }, host)).status, 200);
+    assert.equal((await story.get()).exists, false);
+    assert.equal((await room.get()).data().activeStoryId, undefined);
+    assert.deepEqual((await descendant.get()).data(), { turns: ['Independent turn'] });
+    assert.equal((await image.exists())[0], false);
+    assert.equal((await db.collection('players/' + partner.localId + '/notifications').where('storyId', '==', storyId).get()).empty, true);
+
+    const remainingImage = await fixture('rooms/' + roomId + '/scenes/' + descendant.id + '/comic.jpg');
+    const avatar = await fixture('avatars/' + host.localId + '/version/portrait.jpg');
+    const avatarVersion = db.doc('avatars/' + host.localId + '/versions/version');
+    await avatarVersion.set({ provider: 'openai' });
+    assert.equal((await call('leaveRoom', {}, partner)).status, 200);
+    const otherRoom = await pair(partner, outsider);
+    const activeRoom = await call('createRoom', { title: 'Host waiting room' }, host);
+    assert.equal(activeRoom.status, 200);
+    const savedRoom = activeRoom.result.roomId;
+    const code = (await doc('players/' + host.localId, host)).fields.inviteCode.stringValue;
+    const oldInvite = db.doc('roomInvitations/' + createHash('sha256').update(code).digest('hex'));
+    assert.equal((await call('deleteMyAccount', {}, host)).status, 200);
+    for (const ref of [room, descendant, db.doc('rooms/' + savedRoom), avatarVersion, oldInvite, db.doc('players/' + host.localId)]) {
+      assert.equal((await ref.get()).exists, false, ref.path);
+    }
+    assert.equal((await avatar.exists())[0], false);
+    assert.equal((await remainingImage.exists())[0], false);
+    assert.equal((await db.collection('players/' + partner.localId + '/notifications').where('roomId', '==', roomId).get()).empty, true);
+    assert.equal((await doc('rooms/' + otherRoom, partner)).status, 200);
+    assert.equal((await call('createRoom', { title: 'Should not exist' }, host)).status >= 400, true);
+    assert.equal((await doc('preferences/' + host.localId, host, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { notificationBadge: { booleanValue: false } } }),
+    })).status >= 400, true);
+    const signIn = await fetch(auth + 'signInWithPassword?key=local-demo-key', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: host.email, password: 'local-passphrase', returnSecureToken: true }),
+    });
+    assert.equal(signIn.ok, false);
+  } finally {
+    await db.terminate();
+    await deleteApp(admin);
+  }
 });
