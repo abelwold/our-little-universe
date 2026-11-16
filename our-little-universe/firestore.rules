@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /preferences/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['notificationBadge'])
+        && request.resource.data.notificationBadge is bool;
+    }
+    match /avatars/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      match /versions/{version} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+    match /players/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      match /notifications/{entry} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+          && request.resource.data.read == true;
+      }
+    }
+    match /rooms/{roomId} {
+      allow get: if request.auth != null && resource.data.status != 'ended'
+        && request.auth.uid in [resource.data.ownerId, resource.data.partnerId];
+      match /stories/{storyId} {
+        function canReadStory() {
+          let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+          return room.status == 'ready'
+            && request.auth.uid in [room.ownerId, room.partnerId];
+        }
+        allow read: if request.auth != null && canReadStory();
+      }
+    }
+  }
+}

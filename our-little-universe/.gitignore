@@ -1,0 +1,5 @@
+functions/lib/
+.env
+.env.*
+!.env.example
+functions/.secret.local

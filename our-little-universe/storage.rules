@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{object=**} {
+      // Image functions use the service account after checking the caller's identity.
+      allow read, write: if false;
+    }
+  }
+}

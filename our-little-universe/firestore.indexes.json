@@ -1,0 +1,97 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "favorites",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "scene.completedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "favorites",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "scene.completedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "mood",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scene.completedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "mood",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scene.completedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "favorites",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "mood",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scene.completedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "favorites",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "mood",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scene.completedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
