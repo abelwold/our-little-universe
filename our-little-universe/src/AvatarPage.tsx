@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { doc, collection, getDocFromServer, getDocsFromServer, orderBy, query } from 'firebase/firestore';
+import { Moon, Orbit, Sparkles, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   approveAvatar, avatarExpressions, db, generateAvatar, generateAvatarExpression, getAvatarImage, removeAvatar, selectStarterAvatar,
@@ -9,11 +10,12 @@ import {
 
 type ApprovedAvatar = AvatarPreview & { number: number };
 type AvatarState = { draft?: AvatarPreview; approvedId?: string; versions: ApprovedAvatar[] };
+type Generation = { startedAt: number; message: string; avatarId?: string };
 const starters = [
-  { id: 'moon', name: 'Moon', symbol: '🌙' },
-  { id: 'sun', name: 'Sun', symbol: '☀️' },
-  { id: 'comet', name: 'Comet', symbol: '☄️' },
-  { id: 'planet', name: 'Saturn', symbol: '🪐' },
+  { id: 'moon', name: 'Moon', Icon: Moon },
+  { id: 'sun', name: 'Sun', Icon: Sun },
+  { id: 'comet', name: 'Comet', Icon: Sparkles },
+  { id: 'planet', name: 'Saturn', Icon: Orbit },
 ] as const;
 
 async function preparePhoto(file: File) {
@@ -48,6 +50,24 @@ async function readAvatar(uid: string): Promise<AvatarState> {
   return { ...profile.data(), versions: versions.docs.map(item => item.data() as ApprovedAvatar) };
 }
 
+function GenerationStatus({ startedAt, message }: Generation) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const update = () => setElapsed(Math.floor((performance.now() - startedAt) / 1000));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [startedAt]);
+
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = String(elapsed % 60).padStart(2, '0');
+  return <div className="avatar-generation">
+    <span className="avatar-spinner" aria-hidden="true" />
+    <span role="status">{message}</span>
+    <span className="avatar-elapsed">{minutes}:{seconds} elapsed</span>
+  </div>;
+}
+
 function AvatarImage({ avatar, image = 'portrait', onLoaded }: {
   avatar: AvatarPreview;
   image?: 'portrait' | AvatarExpression;
@@ -70,10 +90,12 @@ function AvatarImage({ avatar, image = 'portrait', onLoaded }: {
   }, [id, image, isGenerated, attempt]);
   if (avatar.provider === 'starter') {
     const starter = starters.find(option => option.id === avatar.starter);
-    return starter && <div className="starter-portrait" data-starter={starter.id} role="img" aria-label={starter.name}>{starter.symbol}</div>;
+    return starter && <div className="starter-portrait" data-starter={starter.id} role="img" aria-label={starter.name}>
+      <starter.Icon aria-hidden="true" />
+    </div>;
   }
   if (!isGenerated) return <p>Saved from the earlier sample generator.</p>;
-  if (error) return <div><p role="alert">{error}</p><button className="quiet" onClick={() => setAttempt(n => n + 1)}>Retry image</button></div>;
+  if (error) return <div><p role="alert">{error}</p><button type="button" className="button secondary" onClick={() => setAttempt(n => n + 1)}>Retry image</button></div>;
   if (!source) return <p role="status">Loading image…</p>;
   return <img className="avatar-portrait" src={source} alt={image === 'portrait' ? 'Generated cartoon portrait' : image + ' avatar'}
     onLoad={onLoaded} onError={() => setError('The generated image could not be displayed.')} />;
@@ -86,6 +108,7 @@ export function AvatarPage({ uid }: { uid: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [generation, setGeneration] = useState<Generation>();
   const [confirmDelete, setConfirmDelete] = useState('');
   const [previewLoaded, setPreviewLoaded] = useState('');
   const [openPack, setOpenPack] = useState('');
@@ -103,13 +126,16 @@ export function AvatarPage({ uid }: { uid: string }) {
     setStatus('');
     try { await action(); }
     catch (error) { setError(error instanceof Error ? error.message : 'Something went wrong. Try again.'); }
-    finally { setBusy(false); }
+    finally {
+      setGeneration(undefined);
+      setBusy(false);
+    }
   }
 
   function generate(event: FormEvent) {
     event.preventDefault();
     void run(async () => {
-      setStatus('Generating your cartoon portrait…');
+      setGeneration({ startedAt: performance.now(), message: 'Generating your cartoon portrait…' });
       await generateAvatar({ photo: photo.split(',')[1], consent });
       setState(await readAvatar(uid));
       setStatus('Your preview is ready.');
@@ -127,8 +153,14 @@ export function AvatarPage({ uid }: { uid: string }) {
     void run(async () => {
       setOpenPack(avatar.id);
       const pending = avatarExpressions.filter(expression => !avatar.expressions?.includes(expression));
-      for (const expression of pending) {
-        setStatus('Generating ' + expression + ' expression…');
+      const startedAt = performance.now();
+      const completed = avatarExpressions.length - pending.length;
+      for (const [index, expression] of pending.entries()) {
+        setGeneration({
+          startedAt,
+          avatarId: avatar.id,
+          message: `Generating ${expression} expression (${completed + index + 1} of ${avatarExpressions.length})…`,
+        });
         await generateAvatarExpression({ id: avatar.id, expression });
         setState(await readAvatar(uid));
       }
@@ -145,20 +177,20 @@ export function AvatarPage({ uid }: { uid: string }) {
     });
   }
 
-  return <section className="panel">
-    <Link className="quiet" to="/room">← Your room</Link>
+  return <section className="panel avatar-page">
+    <Link className="button secondary" to="/room">← Your room</Link>
     <h1>Your avatar</h1>
     <p>Choose a starter avatar for your stories.</p>
     <div className="starter-choices">
       {starters.map(starter => <button type="button" key={starter.id} className="starter-choice"
         disabled={!state || busy} aria-pressed={state?.draft?.starter === starter.id}
         onClick={() => pickStarter(starter.id)}>
-        <span className="starter-portrait" data-starter={starter.id} aria-hidden="true">{starter.symbol}</span>
+        <span className="starter-portrait" data-starter={starter.id} aria-hidden="true"><starter.Icon /></span>
         {starter.name}
       </button>)}
     </div>
     <details className="divider">
-      <summary>Use a photo later</summary>
+      <summary className="button secondary">Use a photo</summary>
       <p>Photo portraits and expression packs require OpenAI API credits. With your consent, a resized copy goes to OpenAI. The app saves the illustration and discards the input photo.</p>
       <form onSubmit={generate}>
         <label>Choose a photo<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy}
@@ -172,7 +204,7 @@ export function AvatarPage({ uid }: { uid: string }) {
           }} /></label>
         {photo && <>
           <img className="avatar-photo" src={photo} alt="Your selected photo" />
-          <button type="button" className="quiet" disabled={busy} onClick={() => { setPhoto(''); setConsent(false); }}>Remove photo</button>
+          <button type="button" className="button avatar-danger" disabled={busy} onClick={() => { setPhoto(''); setConsent(false); }}>Remove photo</button>
           <label className="avatar-consent"><input type="checkbox" checked={consent} disabled={busy}
             onChange={event => setConsent(event.target.checked)} />
             I’m the only person in this photo and consent to sending it to OpenAI to create my avatar.</label>
@@ -180,6 +212,7 @@ export function AvatarPage({ uid }: { uid: string }) {
         <button className="button" disabled={!state || !photo || !consent || busy}>
           {state?.draft ? 'Regenerate preview' : 'Generate preview'}
         </button>
+        {generation && !generation.avatarId && <GenerationStatus {...generation} />}
       </form>
     </details>
     {state?.draft && <div className="divider">
@@ -194,7 +227,7 @@ export function AvatarPage({ uid }: { uid: string }) {
           setState(await readAvatar(uid));
           setStatus('Your avatar is approved.');
         })}>Approve avatar</button>
-        <button className="quiet" disabled={busy} onClick={() => state.draft && remove(state.draft.id)}>Discard preview</button>
+        <button className="button avatar-danger" disabled={busy} onClick={() => state.draft && remove(state.draft.id)}>Discard preview</button>
       </div>
     </div>}
     {state && state.versions.length > 0 && <div className="divider">
@@ -204,7 +237,7 @@ export function AvatarPage({ uid }: { uid: string }) {
         <div>
           <p>Version {avatar.number}{avatar.id === state.approvedId ? ' · Current' : ''}</p>
           {avatar.provider === 'openai' && <>
-            <button className="quiet" aria-expanded={openPack === avatar.id} onClick={() => setOpenPack(openPack === avatar.id ? '' : avatar.id)}>
+            <button className="button secondary" aria-expanded={openPack === avatar.id} onClick={() => setOpenPack(openPack === avatar.id ? '' : avatar.id)}>
               Expressions ({avatar.expressions?.length ?? 0}/{avatarExpressions.length})
             </button>
             {openPack === avatar.id && <>
@@ -217,14 +250,17 @@ export function AvatarPage({ uid }: { uid: string }) {
                 </button>}
             </>}
           </>}
-          {confirmDelete === avatar.id ? <div className="actions">
-            <button className="quiet" disabled={busy} onClick={() => remove(avatar.id)}>Confirm deletion</button>
-            <button className="quiet" disabled={busy} onClick={() => setConfirmDelete('')}>Cancel</button>
-          </div> : <button className="quiet" disabled={busy} onClick={() => setConfirmDelete(avatar.id)}>Delete version {avatar.number}</button>}
+          {generation?.avatarId === avatar.id && <GenerationStatus {...generation} />}
+          <div className="actions avatar-version-actions">
+            {confirmDelete === avatar.id ? <>
+              <button className="button avatar-danger" disabled={busy} onClick={() => remove(avatar.id)}>Confirm deletion</button>
+              <button className="button secondary" disabled={busy} onClick={() => setConfirmDelete('')}>Cancel</button>
+            </> : <button className="button avatar-danger" disabled={busy} onClick={() => setConfirmDelete(avatar.id)}>Delete version {avatar.number}</button>}
+          </div>
         </div>
       </li>)}</ul>
     </div>}
-    <p role="status">{status || (busy ? 'Working…' : '')}</p>
+    <p role="status">{status || (busy && !generation ? 'Working…' : '')}</p>
     {error && <p className="error" role="alert">{error}</p>}
   </section>;
 }

@@ -51,7 +51,9 @@ function Login({ user }: { user: User | null }) {
   const [resetNotice, setResetNotice] = useState('');
   const form = useForm<z.infer<typeof credentials>>();
   const { hash } = useLocation();
-  if (user) return <Navigate to={{ pathname: '/room', hash }} replace />;
+  if (user) return <Navigate to={user.email && !user.emailVerified
+    ? { pathname: '/account', search: '?verify=1', hash }
+    : { pathname: '/room', hash }} replace />;
   return <section className="panel">
     <div className="kicker"><LockKeyhole size={15} /> JUST THE TWO OF YOU</div>
     <h1>{signup ? 'Make yourself at home.' : 'Welcome back.'}</h1>

@@ -32,6 +32,17 @@ input{width:100%;min-height:46px;color:#fff6f2;font:inherit;font-size:16px;borde
 .divider{border-top:1px solid #a87fc24d;padding-top:13px;margin-top:20px}
 .actions{flex-wrap:wrap}
 .error{background:#5a244d;border-radius:10px;padding:8px 12px;color:#ffd9ef}
+.avatar-page summary.button{cursor:pointer}
+.avatar-page summary.button::after{content:"";width:7px;height:7px;border-right:2px solid;border-bottom:2px solid;transform:rotate(45deg)}
+.avatar-page details[open]>summary.button::after{transform:rotate(225deg)}
+.avatar-page .button:not(:disabled):hover{filter:brightness(1.12)}
+.avatar-danger{background:#49253c;color:#ffddeb;border:1px solid #ad6884}
+.avatar-version-actions{margin-top:12px}
+.avatar-generation{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:12px;padding:10px 12px;border:1px solid #866398;border-radius:12px;background:#352141;color:#fff4fb}
+.avatar-spinner{width:16px;height:16px;flex:none;border:2px solid #866398;border-top-color:#f2afe5;border-radius:50%;animation:avatar-spin .9s linear infinite}
+.avatar-elapsed{margin-left:auto;white-space:nowrap;font-size:13px;font-variant-numeric:tabular-nums;color:#e5d0ea}
+@keyframes avatar-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.avatar-spinner{animation:none}}
 .avatar-photo{width:116px;height:116px;object-fit:cover;border-radius:16px}
 .avatar-consent{display:flex;align-items:center;gap:10px}
 .avatar-consent input{width:20px;min-height:20px;flex:none;accent-color:#f2afe5}
@@ -39,7 +50,8 @@ input{width:100%;min-height:46px;color:#fff6f2;font:inherit;font-size:16px;borde
 .starter-choices{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .starter-choice{padding:5px 3px;border-radius:14px;border:1px solid #a87fc24d;font-size:13px}
 .starter-choice[aria-pressed=true]{border-color:#f2afe5;background:#40284d}
-.starter-portrait{display:grid;place-items:center;width:min(100%,112px);aspect-ratio:1;border-radius:14px;background:#433462;font-size:clamp(22px,7vw,46px);margin:4px auto}
+.starter-portrait{display:grid;place-items:center;width:min(100%,112px);aspect-ratio:1;border-radius:14px;background:#433462;margin:4px auto}
+.starter-portrait svg{width:45%;height:45%;stroke-width:1.6}
 .starter-portrait[data-starter=sun]{background:#694233}
 .starter-portrait[data-starter=comet]{background:#39446b}
 .starter-portrait[data-starter=planet]{background:#565077}
